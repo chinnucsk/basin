@@ -1,0 +1,9 @@
+{application,basin,
+             [{description,[]},
+              {vsn,"1"},
+              {registered,[]},
+              {applications,[kernel,stdlib]},
+              {mod,{basin_app,[]}},
+              {env,[]},
+              {modules,[basin_app,basin_primes,basin_sup,
+                        basin_workers_loading,primes]}]}.
