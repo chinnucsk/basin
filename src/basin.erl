@@ -31,36 +31,72 @@ receive_to_file(Filename) ->
 generate(Max, ReturnTo) when is_integer(Max), Max > 0 ->
 	spawn_link(fun() -> generator(Max, ReturnTo) end).
 
-
 generator(Max, ReturnTo) ->
+	Step = step(),
 	process_flag(trap_exit, true),
 	random:seed(now()),
-	{Srvs, TaskSrvs} = basin_workers:load_workers(Max),
-	TasksInfo = [basin_workers:run_worker(Task) || Task <- TaskSrvs],
-	io:format("~p~n", [TasksInfo]),
-	Result = collect_results(Srvs, TasksInfo, []),
+	Srvs1 = get_srvs(),
+	Srvs = case length(Srvs1) * Step > Max of
+		false -> Srvs1;
+		true -> lists:sublist(Srvs1, (Max div Step) + 1)
+	end,
+	lists:foreach(fun(Srv) -> monitor(process, Srv) end, Srvs),
+	CurrentTasks = [run_test(I*Step, min((I + 1)*Step, Max), lists:nth(I+1, Srvs)) || I <- lists:seq(0, length(Srvs) - 1)],
+	Result = generate(Srvs, CurrentTasks, Max, length(Srvs) * Step + 1, []),
 	ReturnTo ! {self(), result, lists:usort(lists:flatten(Result))}.
 
-collect_results(_Srvs, [], Results) ->
-	Results;
+generate(_Srvs, [], Max, From, Res) when From > Max ->
+	Res;
 
-collect_results(Srvs, TaskInfo, Results) ->
+generate(Srvs, TaskInfo, Max, From, Res) ->
 	receive
-		{Pid, test_results, Result} ->
-			Results1 = [Result | Results],
-			TaskInfo1 = lists:keydelete(Pid, 1, TaskInfo),
-			collect_results(Srvs, TaskInfo1, Results1);
-		{'EXIT', _Pid, normal} ->
-			collect_results(Srvs, TaskInfo, Results);
-		{'EXIT', Pid, _Reason} ->
-			{Pid, {Range, _Worker}} = lists:keyfind(Pid, 1, TaskInfo),
-			NSrvIndex = random:uniform(length(Srvs)),
-			NewTaskInfo = basin_workers:run_worker({Range, lists:nth(NSrvIndex, Srvs)}),
-			{Pid1, _Task} = NewTaskInfo,
-			TaskInfo1 = lists:keystore(Pid1, 1, lists:keydelete(Pid, 1, TaskInfo), NewTaskInfo),
-			collect_results(Srvs, TaskInfo1, Results);
+		{Srv, test_result, Primes} ->
+			Res1 = [Primes | Res],
+			{NewFrom, NewTaskInfo} = run_test(From, Max, Srv, TaskInfo),
+			generate(Srvs, NewTaskInfo, Max, NewFrom, Res1);
+		{'DOWN', _Type, Srv, _Info} ->
+			{Srv, {SrvFrom, SrvTo}} = lists:keyfind(Srv, 1, TaskInfo),
+			TaskInfo1 = lists:keydelete(Srv, 1, TaskInfo),
+			{Srvs1, NewTaskInfo} = run_test_in_new(SrvFrom, SrvTo, Srvs, TaskInfo1),
+			generate(Srvs1, NewTaskInfo, Max, From, Res);
 		{Pid, get_progress} ->
-			Pid ! {progress, (length(Srvs) - length(TaskInfo)) * 100 / length(Srvs)},
-			collect_results(Srvs, TaskInfo, Results)
+			Pid ! {process, (From - length(TaskInfo) * step()) * 100 / Max},
+			generate(Srvs, TaskInfo, Max, From, Res)
 	end.
 
+
+run_test(From, Max, _Srv, TaskInfo) when From > Max ->
+	{From, TaskInfo};
+
+run_test(From, Max, Srv, TaskInfo) ->
+	To = min(Max, From + step()),
+	{To + 1, lists:keystore(Srv, 1, TaskInfo, run_test(From, To, Srv))}.
+
+run_test_in_new(From, To, Srvs) ->
+	Index = random:uniform(length(Srvs)),
+	Srv = lists:nth(Index, Srvs),
+	try
+		{Srvs, run_test(From, To, Srv)}
+	catch
+		_:_ ->
+			Srvs1 = lists:delete(Srv, Srvs),
+			run_test_in_new(From, To, Srvs1)
+	end.
+
+run_test_in_new(From, To, Srvs, Tasks) ->
+	{Srvs1, {Srv, {Range}}} = run_test_in_new(From, To, Srvs),
+	NewTasks = lists:keystore(Srv, 1, Tasks, {Srv, {Range}}),
+	{Srvs1, NewTasks}.
+
+run_test(From, To, Name) ->
+	basin_primes_srv:test_range(From, To, Name, self()),
+	{Name, {From, To}}.
+
+get_srvs() ->
+	catch net_adm:world(),
+	{Srvs, _BadNodes} = rpc:multicall(basin_primes_sup, srvs, []),
+	lists:flatten(Srvs).
+
+
+step() ->
+	10000.

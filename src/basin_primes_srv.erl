@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, test_range/2]).
+-export([start_link/1, test_range/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -19,8 +19,8 @@
 %%% API
 %%%===================================================================
 
-test_range({FromN, ToN}, Name) when is_integer(FromN), is_integer(ToN) ->
-	gen_server:call(Name, {test_range, {FromN, ToN}}).
+test_range(FromN, ToN, Name, ReturnTo) when is_integer(FromN), is_integer(ToN) ->
+	gen_server:cast(Name, {test_range, FromN, ToN, Name, ReturnTo}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -64,10 +64,6 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({test_range, {FromN, ToN}}, _From, State) ->
-	Reply = basin_primes:test(FromN, ToN),
-	{reply, Reply, State};
-
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -82,6 +78,11 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({test_range, FromN, ToN, Self, ReturnTo}, State) ->
+	Reply = basin_primes:test(FromN, ToN),
+	ReturnTo ! {Self, test_result, Reply},
+	{noreply, State};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
