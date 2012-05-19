@@ -1,6 +1,6 @@
 -module(basin).
 
--export([start/0, stop/0]).
+-export([start/0, stop/0, generate_to_file/2, generate_progress/1]).
 
 start() ->
 	application:start(basin).
@@ -8,6 +8,25 @@ start() ->
 stop() ->
 	application:stop(basin).
 
+generate_to_file(Max, Filename) when is_integer(Max), Max > 0 ->
+	FSPid = spawn_link(fun() -> receive_to_file(Filename) end),
+	generate(Max, FSPid).
+
+generate_progress(Pid) ->
+	Pid ! {self(), get_progress},
+	receive
+		Some -> Some
+	after 500 ->
+			{notfound, Pid}
+	end.
+
+receive_to_file(Filename) ->
+	receive
+		{_Pid, result, Primes} ->
+			{ok, FH} = file:open(Filename, [write]),
+			io:fwrite(FH, "~p~n", [Primes]),
+			file:close(FH)
+	end.
 
 generate(Max, ReturnTo) when is_integer(Max), Max > 0 ->
 	spawn_link(fun() -> generator(Max, ReturnTo) end).
@@ -18,6 +37,7 @@ generator(Max, ReturnTo) ->
 	random:seed(now()),
 	{Srvs, TaskSrvs} = basin_workers:load_workers(Max),
 	TasksInfo = [basin_workers:run_worker(Task) || Task <- TaskSrvs],
+	io:format("~p~n", [TasksInfo]),
 	Result = collect_results(Srvs, TasksInfo, []),
 	ReturnTo ! {self(), result, lists:usort(lists:flatten(Result))}.
 
@@ -26,7 +46,7 @@ collect_results(_Srvs, [], Results) ->
 
 collect_results(Srvs, TaskInfo, Results) ->
 	receive
-		{Pid, tests_results, Result} ->
+		{Pid, test_results, Result} ->
 			Results1 = [Result | Results],
 			TaskInfo1 = lists:keydelete(Pid, 1, TaskInfo),
 			collect_results(Srvs, TaskInfo1, Results1);
@@ -42,7 +62,5 @@ collect_results(Srvs, TaskInfo, Results) ->
 		{Pid, get_progress} ->
 			Pid ! {progress, (length(Srvs) - length(TaskInfo)) * 100 / length(Srvs)},
 			collect_results(Srvs, TaskInfo, Results)
-	after 10000 ->
-			throw(bad)
 	end.
 

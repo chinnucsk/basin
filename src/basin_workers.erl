@@ -32,7 +32,8 @@ run_worker(Task) ->
 	{spawn_link(fun() -> worker(Task, Self) end), Task}.
 
 worker({{FromN, ToN}, Srv}, ReturnTo) ->
-	ReturnTo ! {self(), test_results, basin_primes_srv:test_range({FromN, ToN}, Srv)}.
+	Result = basin_primes_srv:test_range({FromN, ToN}, Srv),
+	ReturnTo ! {self(), test_results, Result}.
 
 get_workers() ->
 	catch net_adm:world(),

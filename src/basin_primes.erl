@@ -18,8 +18,15 @@ test(From, To) when is_integer(From), is_integer(To), From rem 2 =:= 0 ->
 	test(From + 1, To);
 
 test(From, To) when is_integer(From), is_integer(To) ->
-	[X || X <- lists:seq(From, To, 2), test(X)].
+	lists:reverse(test_range(From, To, [])).
 
+test_range(From, To, Acc) when From > To ->
+	Acc;
+test_range(From, To, Acc) ->
+	case test(From) of
+		true -> Acc1 = [From | Acc], test_range(From + 2, To, Acc1);
+		false -> test_range(From + 2, To, Acc)
+	end.
 
 test(X) when is_integer(X), X < 2 ->
 	false;
