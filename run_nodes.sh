@@ -1,8 +1,8 @@
 #!/bin/bash
 
-for I in `seq 1 20`
+for I in `seq 1 $1`
 do
-	erl -pa ./ebin/ -boot start_sasl -run basin start -sname "basin-"$I -noshell -noinput &
+	erl -pa ./ebin/ -boot start_sasl -run basin start -sname "basin-"$I -detached -noinput &
 done
 
 erl -pa ./ebin/ -boot start_sasl -run basin start -sname "basin-0"

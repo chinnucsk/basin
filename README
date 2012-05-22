@@ -1,0 +1,22 @@
+
+basin:start/0 - запускает приложение, алиас для application:start(basin)
+basin:stop/0 - останавливает, алиас для application:stop(basin)
+
+basin:genereate_to_file(UpTo, File) -> Pid
+    - запускает генерацию до UpTo после завершение генерации все скидывает в файл File, Pid - pid генерирующего процесса
+    UpTo - integer,
+    File - string
+
+basin:generate_progress(Pid) ->
+    {progress, Percents} | {notfound, Pid},
+    получить прогресс генерации
+
+basin:wait_unitl_done(Pid) -> ok
+    ждет пока генерация не завершится, по путно выводит прогресс в stdout
+
+
+
+shell комманды
+make - все компилирует и прогоняет тесты
+make local_nodes NODES=${count}  - запускает ${count} дополнительных нод уже с запущенным приложением и одну с shell-ом для управления.
+
