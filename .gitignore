@@ -2,3 +2,5 @@
 ebin
 *.primes
 .*.swp
+logs
+*.beam
