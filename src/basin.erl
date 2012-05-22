@@ -81,8 +81,7 @@ generate(Srvs, TaskInfo, Max, From, Res) ->
 				_ -> false
 			end,
 			generate(Srvs, TaskInfo, Max, From, Res);
-		{'DOWN', _Ref, _Type, Srv, Info} ->
-			ct:pal(deubg, "Srv ~p DOWN with reason ~p", [Srv, Info]),
+		{'DOWN', _Ref, _Type, Srv, _Info} ->
 			case lists:keyfind(Srv, 1, TaskInfo) of
 				false -> generate(Srvs, TaskInfo, Max, From, Res);
 				{Srv, {SrvFrom, SrvTo}} ->
