@@ -32,9 +32,14 @@ wait_unitl_done(Pid) ->
 receive_to_file(Filename) ->
 	receive
 		{_Pid, result, Primes} ->
-			{ok, FH} = file:open(Filename, [write]),
-			io:fwrite(FH, "~p.~n", [Primes]),
-			file:close(FH)
+			try
+				{ok, FH} = file:open(Filename, [write]),
+				io:fwrite(FH, "~p.~n", [Primes]),
+				file:close(FH)
+			catch
+				A:B ->
+					ct:pal(debug, "~p:~p", [A, B])
+			end
 	end.
 
 generate(Max) ->
@@ -62,8 +67,13 @@ generator(Max, ReturnTo) ->
 	end,
 	lists:foreach(fun(Srv) -> monitor(process, Srv) end, Srvs),
 	CurrentTasks = [run_test(I*Step, min((I + 1)*Step, Max), lists:nth(I+1, Srvs)) || I <- lists:seq(0, length(Srvs) - 1)],
-	Result = generate(Srvs1, CurrentTasks, Max, length(Srvs) * Step + 1, []),
-	ReturnTo ! {self(), result, lists:usort(lists:flatten(Result))}.
+	try
+		Result = generate(get_srvs(), CurrentTasks, Max, length(Srvs) * Step + 1, []),
+		ReturnTo ! {self(), result, lists:usort(lists:flatten(Result))}
+	catch
+		A:B ->
+			ct:pal(debug, "~p:~p", [A, B])
+	end.
 
 generate(_Srvs, [], Max, From, Res) when From > Max ->
 	Res;
@@ -82,6 +92,7 @@ generate(Srvs, TaskInfo, Max, From, Res) ->
 			end,
 			generate(Srvs, TaskInfo, Max, From, Res);
 		{'DOWN', _Ref, _Type, Srv, _Info} ->
+			ct:pal(debug, "Srv ~p down with reason ~p", [Srv, _Info]),
 			case lists:keyfind(Srv, 1, TaskInfo) of
 				false -> generate(Srvs, TaskInfo, Max, From, Res);
 				{Srv, {SrvFrom, SrvTo}} ->
@@ -111,7 +122,7 @@ run_test_in_new(From, To, Srvs) ->
 		{Srvs, Result}
 	catch
 		_:_ ->
-			Srvs1 = Srvs,
+			Srvs1 = get_srvs(),
 			run_test_in_new(From, To, Srvs1)
 	end.
 
@@ -127,7 +138,15 @@ run_test(From, To, Name) ->
 get_srvs() ->
 	catch net_adm:world(),
 	{Srvs, _BadNodes} = rpc:multicall(basin_primes_sup, srvs, []),
+%	filter_srvs(lists:flatten(Srvs), []).
 	lists:flatten(Srvs).
+
+filter_srvs([], Acc) ->
+	Acc;
+filter_srvs([{badrpc, _Some} | Tail], Acc) ->
+	filter_srvs(Tail, Acc);
+filter_srvs([Head | Tail], Acc) ->
+	filter_srvs(Tail, [Head | Acc]).
 
 is_connected(ENode) ->
     [N||N<-nodes(), N==ENode] == [ENode].
