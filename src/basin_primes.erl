@@ -35,9 +35,6 @@ test(X) when is_integer(X), X < 4->
 test(X) when is_integer(X), X rem 2 =:= 0 ->
 	false;
 
-%test(X) ->
-	%simple_test(X).
-
 test(X) when is_integer(X) ->
 	case rabin_test(X) of
 		false -> false;

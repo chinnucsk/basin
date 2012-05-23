@@ -13,5 +13,6 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    {ok, {{one_for_one, 5, 10}, [?CHILD(basin_primes_sup, basin_primes_sup, supervisor, [])]}}.
+    {ok, {{one_for_one, 5, 10}, [?CHILD(basin_primes_sup, basin_primes_sup, supervisor, []),
+								 ?CHILD(basin_gen_sup, basin_gen_sup, supervisor, [])]}}.
 

@@ -2,21 +2,28 @@
 basin:start/0 - запускает приложение, алиас для application:start(basin)
 basin:stop/0 - останавливает, алиас для application:stop(basin)
 
-basin:genereate_to_file(UpTo, File) -> Pid
-    - запускает генерацию до UpTo после завершение генерации все скидывает в файл File, Pid - pid генерирующего процесса
-    UpTo - integer,
-    File - string
+-export([start_generate/1, stop_generator/1, wait_until_done_and_save_to_file/2, get_progress/1, wait_until_done/1]).
 
-basin:generate_progress(Pid) ->
-    {progress, Percents} | {notfound, Pid},
-    получить прогресс генерации
+basin:start_generate/1 -> Pid
+	Запускает генерацию, Pid - pid процесса монитора
 
-basin:wait_unitl_done(Pid) -> ok
-    ждет пока генерация не завершится, по путно выводит прогресс в stdout
+basin:stop_generator/1 -> ok.
+	Останавливает процесс монитор
 
+basin:get_progress/1 -> Progress
+	Возвращает прогресс генерации или информацию что генерация закончена или сдохла
+
+basin:wait_until_done/1 -> Primes
+	ждет пока генерация не завершится, а потом возвращает сгенерированые числа
+
+basin:wait_until_done_and_save_to_file/2 -> Primes
+	тоже что и basin:wait_until_done/1 но еще попутно сохраняет в файл
 
 
 shell комманды
-make - все компилирует и прогоняет тесты
+make - все компилирует и прогоняет все тесты
 make local_nodes NODES=${count}  - запускает ${count} дополнительных нод уже с запущенным приложением и одну с shell-ом для управления.
 
+
+если ct тест generate_and_kill_nodes/1 будет падать с чем-то вроде {error, boot_timeout, ...}, то нужно выполнить
+sudo hostname hotgirls.xxx и снова запустить тесты.
