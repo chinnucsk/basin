@@ -57,22 +57,19 @@ handle_info({Wrk, test_result, Primes}, State) ->
 	run_test(From, To, Wrk),
 	{noreply, State#state{tasks = Tasks1, workers = lists:keystore(Wrk, 1, State#state.workers, {Wrk, {From, To}}), primes = NewPrimes}};
 handle_info({'DOWN', _Ref, process, Wrk, _Info}, State) ->
-	case lists:keyfind(Wrk, 1, State#state.workers) of
-		false ->
-			{noreply, State};
-		{Wrk, {From, To}} ->
-			NewWorkers1 = lists:keydelete(Wrk, 1, State#state.workers),
-			Tasks = [{From, To} | State#state.tasks],
-			Wrks = sets:from_list(get_workers()),
-			CurWrks = sets:from_list([X || {X, _Range} <- State#state.workers]),
-			case sets:size(Wrks) + sets:size(CurWrks) == 0 of
-				true ->
-					{stop, not_workers_more, State};
-				_ ->
-					Wrks1 = sets:to_list(sets:subtract(Wrks, CurWrks)),
-					{CW, Tasks1} = run_tasks(Tasks, Wrks1, []),
-					{noreply, State#state{workers = NewWorkers1 ++ CW, tasks = Tasks1}}
-			end
+	Tasks = case lists:keyfind(Wrk, 1, State#state.workers) of
+		false -> State#state.tasks;
+		{Wrk, {From, To}} -> [{From, To} | State#state.tasks]
+	end,
+	NewWorkers1 = lists:keydelete(Wrk, 1, State#state.workers),
+	Wrks = sets:from_list(get_workers()),
+	CurWrks = sets:from_list([X || {X, _Range} <- NewWorkers1]),
+	case sets:size(Wrks) + sets:size(CurWrks) =:= 0 of
+		true -> {stop, not_workers_more, State};
+		_ ->
+			Wrks1 = sets:to_list(sets:subtract(Wrks, CurWrks)),
+			{CW, Tasks1} = run_tasks(Tasks, Wrks1, []),
+			{noreply, State#state{workers = NewWorkers1 ++ CW, tasks = Tasks1}}
 	end.
 
 

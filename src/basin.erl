@@ -13,7 +13,7 @@ stop() ->
 -record(state, {monitor_ref = undefined, primes = [], done = false, reason = normal}).
 
 start_generate(Max) when is_integer(Max), Max > 0 ->
-	LPid = spawn(fun() -> generate_loop(undefined, #state{}) end),
+	LPid = spawn_link(fun() -> generate_loop(undefined, #state{}) end),
 	{ok, Pid} = supervisor:start_child(basin_gen_sup, [Max, LPid]),
 	LPid ! {generator, Pid},
 	LPid.
@@ -99,7 +99,17 @@ generate_loop(Pid, State) ->
 		{ReturnTo, get_progress} ->
 			case State#state.done of
 				true ->	ReturnTo ! {self(), generation_done, State#state.reason};
-				_ -> ReturnTo ! {self(), progress, basin_gen_srv:get_progress(Pid)}
+				_ ->
+					{Flag, Reply} = try
+						{progress, basin_gen_srv:get_progress(Pid)}
+					catch
+						_E:{normal, _Meta} ->
+							{generation_done, normal};
+
+						_E:R ->
+							{generation_done, R}
+					end,
+					ReturnTo ! {self(), Flag, Reply}
 			end,
 			generate_loop(Pid, State);
 		{ReturnTo, primes} ->

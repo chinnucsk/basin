@@ -3,15 +3,71 @@
 
 -compile(export_all).
 
+
+init_per_testcase(generate_with_no_workers, Config) ->
+	Config;
+init_per_testcase(generate_with_workers_end_workers, Config) ->
+	Config;
+
 init_per_testcase(_, Config) ->
 	basin:start(),
 	Config.
 
+end_per_testcase(generate_with_no_workers, Config) ->
+	Config;
+end_per_testcase(generate_with_workers_end_workers, Config) ->
+	Config;
 end_per_testcase(_, Config) ->
 	ok = basin:stop(),
 	Config.
 
-all() -> [generate_upto_20, generate_upto_20_to_file, generate_same_primes, generate_and_kill_nodes, generate_and_kill_srvs].
+
+all() -> [
+		generate_upto_20,
+		generate_upto_20_to_file,
+		generate_same_primes,
+		generate_and_kill_nodes,
+		generate_and_kill_srvs,
+		generate_with_no_workers,
+		generate_with_workers_end_workers
+	].
+
+generate_with_no_workers(_Config) ->
+	{ok, Pid} = basin_gen_sup:start_link(),
+	Return = try
+		GPid = basin:start_generate(20),
+		basin:wait_until_done(GPid),
+		exit(should_not_be_here)
+	catch
+		_E:{generation_fail, {no_workers_found, _Meta}} ->
+			true;
+		_:_ -> false
+	end,
+	exit(Pid, normal),
+	case Return of
+		true -> true;
+		_ -> exit(fail)
+	end.
+
+generate_with_workers_end_workers(_Config) ->
+	{ok, PPid} = basin_primes_sup:start_link(),
+	{ok, GPid} = basin_gen_sup:start_link(),
+	Return = try
+		GLPid = basin:start_generate(1000000),
+		timer:sleep(600),
+		exit(PPid, normal),
+		basin:wait_until_done(GLPid),
+		exit(should_not_be_here)
+	catch
+		_E:{generation_fail, not_workers_more} ->
+			true;
+		_:_ -> false
+	end,
+	exit(GPid, normal),
+	case Return of
+		true -> true;
+		_ -> exit(fail)
+	end.
 
 generate_upto_20(_Config) ->
 	Pid = basin:start_generate(20),
