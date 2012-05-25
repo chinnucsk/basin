@@ -65,9 +65,14 @@ handle_info({'DOWN', _Ref, process, Wrk, _Info}, State) ->
 			Tasks = [{From, To} | State#state.tasks],
 			Wrks = sets:from_list(get_workers()),
 			CurWrks = sets:from_list([X || {X, _Range} <- State#state.workers]),
-			Wrks1 = sets:to_list(sets:subtract(Wrks, CurWrks)),
-			{CW, Tasks1} = run_tasks(Tasks, Wrks1, []),
-			{noreply, State#state{workers = NewWorkers1 ++ CW, tasks = Tasks1}}
+			case sets:size(Wrks) + sets:size(CurWrks) == 0 of
+				true ->
+					{stop, not_workers_more, State};
+				_ ->
+					Wrks1 = sets:to_list(sets:subtract(Wrks, CurWrks)),
+					{CW, Tasks1} = run_tasks(Tasks, Wrks1, []),
+					{noreply, State#state{workers = NewWorkers1 ++ CW, tasks = Tasks1}}
+			end
 	end.
 
 
