@@ -4,3 +4,5 @@ ebin
 .*.swp
 logs
 *.beam
+.hosts.erlang
+erl_crash.dump
